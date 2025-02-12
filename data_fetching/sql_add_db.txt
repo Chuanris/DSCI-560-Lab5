@@ -1,0 +1,21 @@
+CREATE DATABASE IF NOT EXISTS reddit_data;
+USE reddit_data;
+
+CREATE TABLE IF NOT EXISTS posts (
+    id VARCHAR(20) PRIMARY KEY,
+    title TEXT,
+    selftext TEXT,
+    author VARCHAR(255),
+    created_utc DATETIME,
+    subreddit VARCHAR(100),
+    image LONGBLOB
+);
+
+CREATE TABLE IF NOT EXISTS comments (
+    id VARCHAR(20) PRIMARY KEY,
+    post_id VARCHAR(20),
+    author VARCHAR(255),
+    body TEXT,
+    created_utc DATETIME,
+    FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE
+);
