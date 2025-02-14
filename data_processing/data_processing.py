@@ -2,6 +2,9 @@ import re
 import mysql.connector
 import nltk
 import spacy
+import pytesseract
+from PIL import Image
+import io
 from bs4 import BeautifulSoup
 from nltk.corpus import stopwords
 from datetime import datetime
@@ -40,44 +43,58 @@ def clean_text(text):
     if not text:
         return ""
     
-    text = BeautifulSoup(text, "html.parser").get_text()  # Remove HTML tags
+    # text = BeautifulSoup(text, "html.parser").get_text()  # Remove HTML tags
     text = re.sub(r'[^a-zA-Z0-9\s]', '', text)  # Remove special characters
     text = re.sub(r'\s+', ' ', text).strip().lower()  # Normalize text
     text = ' '.join([word for word in text.split() if word not in stop_words])  # Remove stopwords
     return text
+
+# Extract Text from Image Using OCR
+def extract_text_from_image(image_blob):
+    """Extract text from an image using OCR (Tesseract)."""
+    try:
+        image = Image.open(io.BytesIO(image_blob))  # Convert BLOB to Image
+        extracted_text = pytesseract.image_to_string(image)  # Perform OCR
+        return extracted_text.strip()
+    except Exception as e:
+        print(f"[Error] OCR Failed: {e}")
+        return ""
 
 # Mask Username
 def mask_username(username):
     """Mask usernames to maintain privacy."""
     return "user_" + str(abs(hash(username)) % (10 ** 8))
 
-# Fetch and Clean Posts
+# Fetch and Clean Posts (Including OCR for Images)
 def fetch_and_clean_posts():
-    """Fetch Reddit posts, clean them, and prepare for storage."""
+    """Fetch Reddit posts, clean them, and extract text from images using OCR."""
     conn = connect_db()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT id, title, selftext, author, created_utc, subreddit FROM posts")
+    cursor.execute("SELECT id, title, selftext, author, created_utc, subreddit, image FROM posts")
     posts = cursor.fetchall()
 
     cleaned_posts = []
     for post in posts:
-        post_id, title, selftext, author, created_utc, subreddit = post
+        post_id, title, selftext, author, created_utc, subreddit, image = post
 
         # Clean text
         clean_title = clean_text(title)
         clean_selftext = clean_text(selftext)
 
+        # Extract text from images if available
+        ocr_text = extract_text_from_image(image) if image else ""
+
         # Mask author
         masked_author = mask_username(author)
 
-        # Convert timestamp
+        # Convert timestamp correctly
         if isinstance(created_utc, datetime):
             formatted_time = created_utc.strftime('%Y-%m-%d %H:%M:%S')
         else:
             formatted_time = datetime.fromtimestamp(created_utc).strftime('%Y-%m-%d %H:%M:%S')
 
-        cleaned_posts.append((post_id, clean_title, clean_selftext, masked_author, formatted_time, subreddit))
+        cleaned_posts.append((post_id, clean_title, clean_selftext, ocr_text, masked_author, formatted_time, subreddit))
 
     return cleaned_posts
 
@@ -87,12 +104,13 @@ def store_cleaned_posts(cleaned_posts):
     conn = connect_db()
     cursor = conn.cursor()
 
-    # Create cleaned_posts table if not exists
+    # Modify the cleaned_posts table to include OCR text
     create_table_query = """
     CREATE TABLE IF NOT EXISTS cleaned_posts (
         id VARCHAR(50) PRIMARY KEY,
         clean_title TEXT,
         clean_selftext TEXT,
+        ocr_text TEXT,
         masked_author VARCHAR(255),
         created_utc DATETIME,
         subreddit VARCHAR(100)
@@ -103,16 +121,17 @@ def store_cleaned_posts(cleaned_posts):
 
     # Insert cleaned data into cleaned_posts table
     insert_query = """
-    INSERT INTO cleaned_posts (id, clean_title, clean_selftext, masked_author, created_utc, subreddit)
-    VALUES (%s, %s, %s, %s, %s, %s)
+    INSERT INTO cleaned_posts (id, clean_title, clean_selftext, ocr_text, masked_author, created_utc, subreddit)
+    VALUES (%s, %s, %s, %s, %s, %s, %s)
     ON DUPLICATE KEY UPDATE 
         clean_title = VALUES(clean_title),
         clean_selftext = VALUES(clean_selftext),
+        ocr_text = VALUES(ocr_text),
         masked_author = VALUES(masked_author),
         created_utc = VALUES(created_utc),
         subreddit = VALUES(subreddit);
     """
-    
+
     cursor.executemany(insert_query, cleaned_posts)
     conn.commit()
 
