@@ -91,7 +91,7 @@ def insert_post(conn, cursor, post):
         print(f"[Success] Stored post {post.id}: {post.title[:50]}...")
 
         # Fetch and store comments for this post
-        insert_comments(conn, cursor, post)
+        # insert_comments(conn, cursor, post)
 
     except mysql.connector.Error as err:
         print(f"[Error] Inserting post {post.id}: {err}")
