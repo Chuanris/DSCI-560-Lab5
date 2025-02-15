@@ -9,6 +9,8 @@ from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_score
+import joblib
+
 
 # -----------------------------------------------------------------------------
 # Load environment variables and configure database connection
@@ -89,12 +91,12 @@ def compute_doc2vec_embeddings(docs):
 def cluster_embeddings(embeddings, num_clusters=5):
     """
     Cluster the embeddings using KMeans.
-    Returns cluster labels and the cluster centroids.
+    Returns cluster labels and the KMeans model.
     """
     kmeans = KMeans(n_clusters=num_clusters, random_state=42)
     labels = kmeans.fit_predict(embeddings)
-    centroids = kmeans.cluster_centers_
-    return labels, centroids
+    return labels, kmeans  # Return the KMeans model
+
 
 # -----------------------------------------------------------------------------
 # Step 5a: Identify the message closest to each cluster centroid
@@ -191,7 +193,9 @@ def visualize_clusters(embeddings, labels, cluster_keywords, closest_messages, p
     plt.xlabel("PCA Component 1")
     plt.ylabel("PCA Component 2")
     plt.tight_layout()
-    plt.show()
+    plt.savefig("cluster_visualization.png", dpi=300, bbox_inches='tight')
+    plt.close()
+
 
 # -----------------------------------------------------------------------------
 # Step 7: Update the database with the cluster ID and keywords for each post
@@ -237,7 +241,8 @@ def main():
 
     # 4. Cluster the embeddings (adjust num_clusters as needed)
     num_clusters = 2
-    labels, centroids = cluster_embeddings(embeddings, num_clusters=num_clusters)
+    labels, kmeans_model = cluster_embeddings(embeddings, num_clusters=num_clusters)
+    centroids = kmeans_model.cluster_centers_
 
     silhouette = silhouette_score(embeddings, labels)
     print(f"🧩 Silhouette Score: {silhouette:.3f}")
@@ -262,6 +267,13 @@ def main():
     
     # 7. Update the posts in the database with the cluster info
     update_posts_with_cluster_info(posts, labels, cluster_keywords)
+
+    
+    d2v_model.save("doc2vec_model.bin")
+    print("Doc2Vec model saved to doc2vec_model.bin")
+    joblib.dump(kmeans_model, "kmeans_model.pkl")
+    print("KMeans model saved to kmeans_model.pkl")
+
 
 if __name__ == '__main__':
     main()
