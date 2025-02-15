@@ -1,0 +1,2 @@
+ALTER TABLE cleaned_posts ADD COLUMN cluster_id INT;
+ALTER TABLE cleaned_posts ADD COLUMN keywords TEXT;
