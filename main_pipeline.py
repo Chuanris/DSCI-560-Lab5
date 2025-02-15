@@ -21,7 +21,7 @@ def run_pipeline():
     # 1. Data Collection
     print("Fetching data using data_fetching/data_collection.py...")
     try:
-        subprocess.check_call(["python", "data_fetching/data_collection.py", "5"])
+        subprocess.check_call(["python", "data_fetching/data_collection.py", "5000"])
         print("Data fetching completed successfully.\n")
     except subprocess.CalledProcessError as e:
         print(f"[ERROR] Data fetching failed: {e}")
